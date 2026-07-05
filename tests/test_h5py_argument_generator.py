@@ -42,7 +42,7 @@ class TestH5PyArgumentGenerator(unittest.TestCase):
         # these tests don't intermittently fail (several assert exact generated output).
         seed(1234)
         # Create a minimal FusilConfig for the parent ArgumentGenerator
-        mock_options = FusilConfig(read=False)
+        mock_options = FusilConfig()
         mock_options.no_numpy = False
         mock_options.no_tstrings = False
         # Add any other options ArgumentGenerator or H5PyArgumentGenerator might expect
