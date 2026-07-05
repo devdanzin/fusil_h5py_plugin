@@ -45,7 +45,7 @@ class TestWriteH5PyCode(unittest.TestCase):
         self.mock_parent_writer = MagicMock()
 
         # 2. Mock the necessary attributes on the parent
-        self.mock_parent_writer.options = FusilConfig(read=False)
+        self.mock_parent_writer.options = FusilConfig()
         self.mock_parent_writer.output = StringIO()
 
         # 3. Mock the parent's methods that WriteH5PyCode will call

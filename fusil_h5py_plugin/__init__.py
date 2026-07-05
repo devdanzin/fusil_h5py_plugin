@@ -107,6 +107,11 @@ def register(manager):
         )
         return
 
+    # Advertise the plugin's hard numpy requirement (h5py itself pulls numpy in, but the
+    # tricky-object machinery uses numpy directly). Reached only when _H5PY_AVAILABLE, i.e.
+    # numpy imported successfully above, so this documents the dep rather than gating on it.
+    manager.declare_dependency("numpy")
+
     # --- CLI: force h5py support on for any target module ---
     manager.add_cli_option(
         "--fuzz-h5py",
