@@ -59,7 +59,6 @@ class TestH5PyArgumentGenerator(unittest.TestCase):
             filenames=mock_options.filenames.split(",")
             if mock_options.filenames
             else default_filenames,
-            use_numpy=True,
             use_templates=True,
         )
 

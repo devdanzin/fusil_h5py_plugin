@@ -173,7 +173,31 @@ def register(manager):
     manager.add_class_handler(h5py_class_handler)
 
     def h5py_startup_hook(config):
-        if _is_h5py_target(config, getattr(config, "modules", "") or ""):
-            print("[h5py plugin] h5py fuzzing support loaded", file=sys.stderr)
+        modules = getattr(config, "modules", "") or ""
+        if not _is_h5py_target(config, modules):
+            return
+        print("[h5py plugin] h5py fuzzing support loaded", file=sys.stderr)
+        # h5py's per-instance code generation is far heavier than a normal class: a File
+        # recurses into groups/datasets, each create_dataset method call spawns a dataset,
+        # and every dataset emits many slice/resize/astype/asstr/fields/iter/fancy-index op
+        # blocks. At the core's default volume knobs (tuned for lightweight classes) a single
+        # session's source.py explodes to ~600k lines / ~50s. When h5py is the actual target
+        # module, cap the knobs to h5py-sane values so sessions stay a few seconds. Not applied
+        # when --fuzz-h5py merely injects h5py args into a different, lighter target: there
+        # h5py classes are never deeply fuzzed, so the other module keeps its full budget.
+        if modules != "*" and "h5py" in {m.strip() for m in modules.split(",")}:
+            for attr, cap in (
+                ("methods_number", 5),
+                ("classes_number", 10),
+                ("objects_number", 5),
+                ("functions_number", 25),
+            ):
+                cur = getattr(config, attr, None)
+                if isinstance(cur, int) and cur > cap:
+                    setattr(config, attr, cap)
+                    print(
+                        f"[h5py plugin] capped --{attr.replace('_', '-')} {cur} -> {cap}",
+                        file=sys.stderr,
+                    )
 
     manager.add_hook("startup", h5py_startup_hook)
