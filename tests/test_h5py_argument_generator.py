@@ -106,8 +106,18 @@ class TestH5PyArgumentGenerator(unittest.TestCase):
             "random": random,  # if generators use these directly in output expr
         }
         self.test_globals["h5py_runtime_objects"] = MagicMock(name="h5py_runtime_objects_mock")
-        # Add tricky numpy names as placeholders
-        for name in fusil.python.tricky_weird.tricky_numpy_names:
+        # Add tricky numpy names as placeholders so an eval'd h5py expression that references a
+        # numpy tricky object (e.g. `numpy_zerodim_int` used as dataset data) resolves instead of
+        # raising NameError. These moved out of fusil.python.tricky_weird into the numpy plugin when
+        # numpy support was extracted; derive them from that module's `numpy_*` globals (guarded so
+        # the suite still imports if the numpy plugin isn't installed).
+        try:
+            import fusil_numpy_plugin.tricky_numpy as _tricky_numpy
+
+            _numpy_names = [n for n in dir(_tricky_numpy) if n.startswith("numpy_")]
+        except ImportError:
+            _numpy_names = []
+        for name in _numpy_names:
             self.test_globals[name] = f"numpy_placeholder_for_{name}"
 
     def assertIsListOfStrings(self, result, method_name):
