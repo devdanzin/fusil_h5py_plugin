@@ -172,11 +172,27 @@ def register(manager):
 
     manager.add_class_handler(h5py_class_handler)
 
+    # --- Deny h5py's own test runner ---
+    # `h5py.run_tests()` is a module-level function that invokes h5py's pytest suite. Under OOM
+    # injection it just crashes deep in libhdf5 (e.g. H5C__untag_entry during file-create cache
+    # teardown) from a non-API entry point -- noise, not a genuine h5py-API OOM bug. Deny it so
+    # the fuzzer never calls it. Harmless on non-h5py runs: no other fuzzed module exposes a
+    # `run_tests` callable we'd want to fuzz. (The h5py.tests *submodule* is handled separately
+    # in the startup hook + is already a ModuleType attr / substring-matched by core's "test"
+    # module blacklist.)
+    manager.add_blacklist_entry("function", "run_tests")
+
     def h5py_startup_hook(config):
         modules = getattr(config, "modules", "") or ""
         if not _is_h5py_target(config, modules):
             return
         print("[h5py plugin] h5py fuzzing support loaded", file=sys.stderr)
+        # Keep the h5py.tests submodule out of module discovery (belt-and-suspenders alongside
+        # the run_tests function deny above). `--blacklist` is a comma-separated string that
+        # module discovery unions with the core MODULE_BLACKLIST.
+        blacklist = getattr(config, "blacklist", "") or ""
+        if "h5py.tests" not in blacklist.split(","):
+            config.blacklist = (blacklist + "," if blacklist else "") + "h5py.tests"
         # h5py's per-instance code generation is far heavier than a normal class: a File
         # recurses into groups/datasets, each create_dataset method call spawns a dataset,
         # and every dataset emits many slice/resize/astype/asstr/fields/iter/fancy-index op

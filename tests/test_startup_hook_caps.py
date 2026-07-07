@@ -16,13 +16,18 @@ import fusil_h5py_plugin
 
 
 class _StubManager:
-    """Collects the hooks the plugin registers; every other add_*/declare_* is a no-op."""
+    """Collects the hooks/blacklist entries the plugin registers; every other add_*/declare_*
+    is a no-op."""
 
     def __init__(self):
         self.hooks = {}
+        self.blacklist_entries = []
 
     def add_hook(self, name, func):
         self.hooks.setdefault(name, []).append(func)
+
+    def add_blacklist_entry(self, kind, pattern, pattern_type="exact"):
+        self.blacklist_entries.append((kind, pattern, pattern_type))
 
     def __getattr__(self, _name):
         return lambda *a, **k: None
@@ -84,6 +89,38 @@ class TestStartupHookCaps(unittest.TestCase):
         cfg = SimpleNamespace(modules="json", fuzz_h5py=False, **DEFAULTS)
         hook(cfg)  # register()'s _is_h5py_target is False -> hook returns early
         self.assertEqual(cfg.methods_number, 15)
+
+
+@unittest.skipUnless(
+    getattr(fusil_h5py_plugin, "_H5PY_AVAILABLE", False),
+    "h5py/numpy not importable; plugin register() is a no-op",
+)
+class TestRunTestsDeny(unittest.TestCase):
+    """h5py.run_tests() (its pytest runner) is denied; h5py.tests submodule kept out of
+    module discovery. Both are noise entry points, not genuine h5py-API OOM bugs."""
+
+    def test_run_tests_function_is_blacklisted(self):
+        m = _StubManager()
+        fusil_h5py_plugin.register(m)
+        self.assertIn(("function", "run_tests", "exact"), m.blacklist_entries)
+
+    def test_startup_hook_adds_h5py_tests_to_module_blacklist(self):
+        hook = _startup_hook()
+        cfg = SimpleNamespace(modules="h5py", fuzz_h5py=False, blacklist="", **DEFAULTS)
+        hook(cfg)
+        self.assertIn("h5py.tests", cfg.blacklist.split(","))
+
+    def test_startup_hook_preserves_existing_blacklist(self):
+        hook = _startup_hook()
+        cfg = SimpleNamespace(modules="h5py", fuzz_h5py=False, blacklist="foo,bar", **DEFAULTS)
+        hook(cfg)
+        self.assertEqual(cfg.blacklist.split(","), ["foo", "bar", "h5py.tests"])
+
+    def test_startup_hook_does_not_duplicate_h5py_tests(self):
+        hook = _startup_hook()
+        cfg = SimpleNamespace(modules="h5py", fuzz_h5py=False, blacklist="h5py.tests", **DEFAULTS)
+        hook(cfg)
+        self.assertEqual(cfg.blacklist.split(","), ["h5py.tests"])
 
 
 if __name__ == "__main__":
